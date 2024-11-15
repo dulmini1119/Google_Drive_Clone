@@ -18,8 +18,9 @@ import { constructDownloadUrl } from "@/lib/utils";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { usePathname } from "next/navigation";
-import { renameFile } from "@/lib/actions/file.actions";
-import { FileDetails } from "./ActionsModelContent";
+import { deleteFile, renameFile, updateFileUsers } from "@/lib/actions/file.actions";
+import { FileDetails, ShareInput } from "./ActionsModelContent";
+
 
 
 const ActionsDropdown = ({ file }: { file: Models.Document }) => {
@@ -28,6 +29,7 @@ const ActionsDropdown = ({ file }: { file: Models.Document }) => {
   const [action, setAction] = useState<ActionType | null>(null);
   const [name, setName] = useState(file.name);
   const [isLoading,setIsLoading] = useState(false);
+  const [emails,setEmails] = useState<string[]>([]);
   const path = usePathname();
 
   const closeAllModels =() => {
@@ -48,13 +50,25 @@ const ActionsDropdown = ({ file }: { file: Models.Document }) => {
         extension: file.extension,
         path
       }),
-      share: () => console.log('share'),
-      delete: () => console.log('delete'),
+      share: () => updateFileUsers({fileId: file.$id, emails, path}),
+      delete: () => deleteFile({fileId : file.$id, path, bucketFileId: file.bucketFileId}),
     };
     success = await actions[action.value as keyof typeof actions]();
 
     if(success) closeAllModels();
     setIsLoading(false);
+  }
+
+  const handleRemoveUser = async(email: string) => {
+    const updatedEmails = emails.filter((e) => e !== email);
+
+    const success = await updateFileUsers({
+      fileId: file.$id,
+      emails: updatedEmails,
+      path,
+    });
+    if(success) setEmails(updatedEmails);
+    closeAllModels();
   }
 
   const renderDialogContent = () => {
@@ -74,7 +88,22 @@ const ActionsDropdown = ({ file }: { file: Models.Document }) => {
         onChange={(e) => setName(e.target.value)}
         />
       )}
-      {value && 'details' && <FileDetails file={file} />}
+      
+      {value === 'details' && <FileDetails file={file} />}
+
+      {value === 'share' && (
+        <ShareInput file={file} onInputChange={setEmails} onRemove={handleRemoveUser}/>
+      )}
+
+      {value === 'delete' && (
+        <p className="delete-confirmation">
+          Are you sure you want to delete{` `}
+          <span className="delete-file-name">
+            {file.name}
+          </span>?
+        </p>
+      )}
+
     </DialogHeader>
 
       {['rename','delete', 'share'].includes(value) && (
